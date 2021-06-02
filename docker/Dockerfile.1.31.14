@@ -1,0 +1,43 @@
+FROM ubuntu:16.04
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update --fix-missing && \
+    apt-get install -y wget git
+
+RUN wget http://repo.mysql.com/mysql-apt-config_0.8.9-1_all.deb \
+    && apt-get install -y lsb-release 
+
+RUN apt-get install -y php7.0 php7.0-mysql php7.0-mbstring php7.0-xml libapache2-mod-php7.0 \
+    && apt-get install -y apache2 \
+    && apt-get -qq purge && apt-get -qq clean && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir /var/lib/mediawiki \
+    && wget https://releases.wikimedia.org/mediawiki/1.31/mediawiki-core-1.31.14.tar.gz \
+    && tar -xvzf mediawiki-core-1.31.14.tar.gz \
+    && mv mediawiki-1.31.14/* /var/lib/mediawiki/ \
+    && rm -rf /var/www/html \
+    && ln -s /var/lib/mediawiki /var/www/html 
+
+RUN git clone https://phabricator.wikimedia.org/diffusion/SVEC/Vector -b REL1_27 \
+    && mv Vector /var/lib/mediawiki/skins/
+    
+RUN apt-get update && apt-get install -y mysql-server
+
+RUN apt-get update && apt-get install -y vim
+
+RUN rm -rf /var/lib/mediawiki/images
+ADD ./images.tar.gz /var/lib/mediawiki/
+RUN rm -rf /var/lib/mediawiki/images/temp /var/lib/mediawiki/images/lockdir
+COPY ./extensions /var/lib/mediawiki/extensions
+COPY ./common-images /var/lib/mediawiki/skins/common/images
+COPY ./LocalSettings.php /var/lib/mediawiki/LocalSettings.php
+
+RUN mkdir -p /var/lib/mediawiki/cache \
+    && echo "Deny from all" > /var/lib/mediawiki/cache/.htaccess \
+    && chmod -R 777 /var/lib/mediawiki/cache \
+    && chmod -R 777 /var/lib/mediawiki/images 
+
+COPY ./entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT [ "/entrypoint.sh" ]
